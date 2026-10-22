@@ -1,9 +1,8 @@
-
 # Custom Image Classification using YOLOv8n-cls
 
 This repository contains the coursework project for developing a custom image classification model using **YOLOv8n-cls**. The project leverages **Transfer Learning** to adapt a high-performance deep learning model trained on a massive benchmark dataset to a specific custom classification task.
 
-## 🧠 Transfer Learning Methodology
+# Transfer Learning Methodology
 Instead of training a deep convolutional neural network from scratch—which requires millions of images and significant computational power—this project utilizes **Transfer Learning**.
 
 ### 1. Pre-trained Base (Source Knowledge)
