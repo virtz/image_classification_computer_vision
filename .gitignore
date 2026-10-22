@@ -1,1 +1,6 @@
-.venv/
+__MACOSX/
+._*
+.DS_Store
+venv/
+runs/
+*.pt
