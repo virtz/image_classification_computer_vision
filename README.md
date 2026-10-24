@@ -12,3 +12,6 @@ We initiate the model using `yolov8n-cls.pt`. These weights are pre-trained on t
 
 ### 2. Fine-Tuning (Knowledge Transfer)
 To adapt this baseline intelligence to our custom task, we replace the final classification layer (the head) of the network to match the number of classes in our custom dataset. During training, the model uses its existing feature-extraction knowledge and refines its internal weights to map those features to our specific target categories.
+
+For the complete dataset-preparation, detection-labeling, training, and
+evaluation workflow, see [PIPELINE.md](PIPELINE.md).
