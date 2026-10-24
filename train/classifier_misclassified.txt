@@ -1,0 +1,2 @@
+data/office_items_dataset/test/phone/phone_013_34947a2ea5aa.jpg  true=phone  pred=usb_cord  conf=0.71
+data/office_items_dataset/test/water_bottle/water_bottle_007_0961cd7adb77.jpg  true=water_bottle  pred=pen  conf=0.75
