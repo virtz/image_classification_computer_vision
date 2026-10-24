@@ -19,7 +19,7 @@ from ultralytics import YOLO
 # Fix 1: resolve the repo root from this file's location (this file lives in train/)
 REPO_ROOT = Path(__file__).resolve().parent.parent
 DATA = str(REPO_ROOT / "data" / "office_items_dataset")
-LABELS_FILE = REPO_ROOT / "labels.txt"
+LABELS_FILE = REPO_ROOT / "train" / "class_names.txt"
 
 # Fix 2: always write runs next to the detector runs, wherever the script is launched from
 PROJECT = str(REPO_ROOT / "train" / "runs" / "classify")
