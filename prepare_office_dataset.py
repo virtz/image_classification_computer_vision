@@ -5,7 +5,7 @@ Dependencies:
     python -m pip install numpy pillow opencv-python matplotlib
 
 Run from the repository root (script may be copied there):
-    python advanced_office_dataset.py --raw raw_dataset --output code/data/office_items_dataset
+    python prepare_office_dataset.py --raw preprocessing/raw_dataset
 
 Produces 100 files/class (70 train, 15 val, 15 test) when at least
 --min-real-for-100 usable distinct REAL photos/class remain after curation.
@@ -34,10 +34,10 @@ import numpy as np
 from PIL import Image, ImageDraw, ImageEnhance, ImageOps, UnidentifiedImageError
 
 CLASSES = (
-    "extension_box", "flash_drive", "keyboard", "mouse", "mug",
-    "notebook", "pen", "phone", "usd_cord", "water_bottle",
+    "extension_box", "flash_drive", "mug",
+    "notebook", "pen", "phone", "usb_cord", "water_bottle",
 )
-ALIASES = {"usb_cord": "usd_cord"}  # Rename only after agreeing with your teammates.
+ALIASES = {"usd_cord": "usb_cord"}
 EXTENSIONS = {".jpg", ".jpeg", ".png", ".webp", ".bmp", ".tif", ".tiff"}
 SPLITS = ("train", "val", "test")
 REPORT_COLUMNS = [
@@ -366,9 +366,10 @@ def main() -> None:
     default_project = Path(__file__).resolve().parent
     parser = argparse.ArgumentParser(description=__doc__,
         formatter_class=argparse.ArgumentDefaultsHelpFormatter)
-    parser.add_argument("--raw", type=Path, default=default_project / "raw_dataset")
+    parser.add_argument("--raw", type=Path,
+                        default=default_project / "preprocessing/raw_dataset")
     parser.add_argument("--output", type=Path,
-                        default=default_project / "code/data/office_items_dataset")
+                        default=default_project / "data/office_items_dataset")
     parser.add_argument("--max-per-class", type=int, default=100)
     parser.add_argument("--min-side", type=int, default=160)
     parser.add_argument("--max-dimension", type=int, default=1600)
@@ -400,21 +401,17 @@ def main() -> None:
         parser.error("Invalid image dimension limits")
 
     rng = random.Random(args.seed)
-    generated = [out / s for s in (*SPLITS, "reports", "figures")]
-    existing = [p for p in generated if p.exists()]
-    if existing and not args.overwrite:
-        parser.error("Output already has generated folders. Add --overwrite to back them up first")
-    if existing:
-        backup = out / f"backup_{datetime.now():%Y%m%d_%H%M%S}"
-        backup.mkdir(parents=True, exist_ok=False)
-        for old in existing:
-            shutil.move(str(old), str(backup / old.name))
-        print(f"Previous generated files backed up: {backup}")
-
     audit: list[dict] = []
     found = Counter()
     candidates: dict[str, list[Photo]] = defaultdict(list)
     files = sorted(p for p in raw.rglob("*") if p.is_file() and p.suffix.lower() in EXTENSIONS)
+    if not files:
+        parser.error(f"No supported image files found under {raw}")
+    if not any(label_from_path(file, raw) is not None for file in files):
+        parser.error(
+            f"No images are inside recognized class folders under {raw}. "
+            f"Expected folders named: {', '.join(CLASSES)}"
+        )
     print(f"Scanning {len(files)} image files in {raw} ...")
     for index, file in enumerate(files, 1):
         label = label_from_path(file, raw)
@@ -434,6 +431,20 @@ def main() -> None:
 
     selected = select_photos(candidates, args.max_per_class,
                              args.phash_distance, audit)
+    if not any(selected.values()):
+        parser.error("No usable images remained after validation and duplicate filtering")
+
+    generated = [out / s for s in (*SPLITS, "reports", "figures")]
+    existing = [p for p in generated if p.exists()]
+    if existing and not args.overwrite:
+        parser.error("Output already has generated folders. Add --overwrite to back them up first")
+    if existing:
+        backup = out / f"backup_{datetime.now():%Y%m%d_%H%M%S}"
+        backup.mkdir(parents=True, exist_ok=False)
+        for old in existing:
+            shutil.move(str(old), str(backup / old.name))
+        print(f"Previous generated files backed up: {backup}")
+
     manifest: list[dict] = []
     summary: list[dict] = []
     shortfalls: list[dict] = []
