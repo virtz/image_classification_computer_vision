@@ -19,10 +19,11 @@ SOURCE = ROOT.parent / "data" / "office_items_dataset"
 OUTPUT = ROOT / "detect_dataset"
 PROMPT_CONFIDENCE = 0.05          # autolabel.py used 0.25
 IMAGE_EXTENSIONS = {".jpg", ".jpeg", ".png", ".webp", ".bmp"}
-SKIP_CLASSES = {"extension_box"}  # faulty images, waiting for the replacements
+SKIP_CLASSES = set()
 PROMPTS = {                       # clearer text than the folder names
     "flash_drive": "USB flash drive",
     "usb_cord": "USB cable",
+    "extension_box": "power strip",
 }
 
 

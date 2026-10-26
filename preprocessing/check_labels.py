@@ -6,8 +6,8 @@ import cv2
 
 ROOT = Path(__file__).resolve().parent / "detect_dataset"
 PREVIEW = ROOT / "preview"
-SAMPLE = 50
-SPLIT = "train"
+SAMPLE = 200
+SPLIT = "test"
 IMAGE_EXTENSIONS = {".jpg", ".jpeg", ".png", ".webp", ".bmp"}
 
 
@@ -40,9 +40,11 @@ def main():
         )
         (multi_box_images if row_count > 1 else single_box_images).append(image_path)
 
-    selected = random.sample(multi_box_images, min(SAMPLE, len(multi_box_images)))
+    selected = random.sample(
+        multi_box_images, min(SAMPLE, len(multi_box_images)))
     remaining = SAMPLE - len(selected)
-    selected.extend(random.sample(single_box_images, min(remaining, len(single_box_images))))
+    selected.extend(random.sample(single_box_images,
+                    min(remaining, len(single_box_images))))
     selected.sort()
 
     for old_preview in PREVIEW.iterdir():
