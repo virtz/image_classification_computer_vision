@@ -1,4 +1,4 @@
-test images: 120
+test images: 119
 accuracy: 0.983
 macro-F1: 0.983
 
@@ -11,8 +11,8 @@ extension_box       1.00      1.00      1.00        15
           pen       0.94      1.00      0.97        15
         phone       1.00      0.93      0.97        15
      usb_cord       0.94      1.00      0.97        15
- water_bottle       1.00      0.93      0.97        15
+ water_bottle       1.00      0.93      0.96        14
 
-     accuracy                           0.98       120
-    macro avg       0.98      0.98      0.98       120
- weighted avg       0.98      0.98      0.98       120
+     accuracy                           0.98       119
+    macro avg       0.98      0.98      0.98       119
+ weighted avg       0.98      0.98      0.98       119
