@@ -1,0 +1,14 @@
+path: C:/Users/ANASTASIA/Desktop/Training Part/preprocessing/detect_dataset
+train: images/train
+val: images/val
+test: images/test
+
+names:
+  0: extension_box
+  1: flash_drive
+  2: mug
+  3: notebook
+  4: pen
+  5: phone
+  6: usb_cord
+  7: water_bottle

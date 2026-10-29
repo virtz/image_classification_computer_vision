@@ -1,0 +1,8 @@
+extension_box
+flash_drive
+mug
+notebook
+pen
+phone
+usb_cord
+water_bottle
