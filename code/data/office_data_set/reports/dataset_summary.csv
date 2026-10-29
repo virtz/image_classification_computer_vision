@@ -1,0 +1,11 @@
+class_name,files_discovered,technically_valid,unique_real_selected,rejected_or_excluded,train_real,train_augmented,val_real,test_real,total_final,shortfall
+extension_box,100,100,100,0,70,0,15,15,100,0
+flash_drive,100,51,50,50,34,0,8,8,50,50
+keyboard,100,100,98,2,68,2,15,15,100,0
+mouse,101,100,96,5,66,4,15,15,100,0
+mug,100,66,66,34,36,34,15,15,100,0
+notebook,100,100,100,0,70,0,15,15,100,0
+pen,100,100,100,0,70,0,15,15,100,0
+phone,100,100,100,0,70,0,15,15,100,0
+usd_cord,100,46,46,54,32,0,7,7,46,54
+water_bottle,100,100,100,0,70,0,15,15,100,0
