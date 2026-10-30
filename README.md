@@ -441,4 +441,4 @@ Other detection utilities:
 - [`preprocessing/README.md`](preprocessing/README.md) focuses on preparing
   and auditing the detection dataset.
 - [`draft.md`](draft.md) contains the detailed recorded classifier error
-  analysis and detector evaluation caveats
+  analysis and detector evaluation caveats.
