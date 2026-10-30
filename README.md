@@ -88,6 +88,8 @@ when needed; this requires network access on first use. The listed dependencies
 include Ultralytics, PyTorch's runtime dependencies, OpenCV, Pillow,
 Matplotlib, SciPy, and scikit-learn.
 
+On Windows, activate the environment with ⁠ .venv\Scripts\activate ⁠ instead. On macOS, activate it with ⁠source .venv/bin/activate ⁠.
+
 ## Run the local detection UI
 
 The interface supports a live browser camera stream and single-image detection.
@@ -124,6 +126,8 @@ Raspberry Pi.
 | Model checkpoint | `train/final_model/best.pt` | Trained YOLO detector weights |
 | Confidence threshold | 0.35 | Hide detections below this confidence |
 | Inference size | 320 px | YOLO input size; lower values can improve edge speed |
+
+⁠*Tip:* You can quickly stop the Streamlit local server at any time by pressing ⁠ Ctrl + C ⁠ in your terminal.
 
 ### UI troubleshooting
 
