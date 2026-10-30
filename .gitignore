@@ -1,6 +1,23 @@
-__MACOSX/
-._*
-.DS_Store
+# Local Python environments and bytecode
 venv/
-runs/
+.venv/
+__pycache__/
+*.py[cod]
+
+# macOS metadata
+.DS_Store
+._*
+__MACOSX/
+
+# Model checkpoints and generated training outputs
 *.pt
+runs/
+train/final_model/
+
+# Generated detector datasets and rerun backups
+preprocessing/detect_dataset/
+preprocessing/detect_dataset\ copy/
+preprocessing/detect_dataset_backup_*/
+
+# Generated caches
+*.cache
