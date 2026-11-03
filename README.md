@@ -247,11 +247,25 @@ for model selection.
 | Pretrained / fine-tuned YOLOv8n-cls | 119 | 0.983 | 0.983 | 2 |
 | YOLOv8n-cls trained from scratch | 119 | 0.647 | 0.643 | 42 |
 
-The fine-tuned model's two recorded errors were a phone predicted as
-`usb_cord` and a `water_bottle` image predicted as `pen`. The latter photo
-contains a small bottle in a busy scene, illustrating that the folder label
-does not necessarily describe most of the image. The scratch baseline is
-included as a comparison, not as the selected model.
+The pretrained model improved accuracy by about 34 percentage points over the
+scratch baseline. The test set is small: it has 15 images per class except for
+14 `water_bottle` images, so each image changes overall accuracy by about 0.8
+percentage points. Treat these results as indicative rather than a precise
+estimate of accuracy.
+
+The fine-tuned model's two recorded errors were a phone image (`phone_013`)
+predicted as `usb_cord` with 0.71 confidence, and a `water_bottle` image
+(`water_bottle_007`) predicted as `pen` with 0.75 confidence. The phone is the
+only item in its image, so the reason for that prediction is unclear. The
+bottle is small and appears in a busy scene with two children playing; the
+folder label does not describe most of the image. Both incorrect predictions
+had moderate-to-high confidence, so a confidence threshold alone would not
+have removed them.
+
+Classification takes the folder name as the true class, even when an image
+contains multiple objects. Performance on cluttered scenes with several
+office items has not been measured. The scratch baseline is included for
+comparison, not as the selected model.
 
 Results and supporting outputs:
 
@@ -265,8 +279,6 @@ Results and supporting outputs:
   [`train/classifier_scratch_confusion_matrix.png`](train/classifier_scratch_confusion_matrix.png),
   and [`train/classifier_scratch_misclassified.txt`](train/classifier_scratch_misclassified.txt):
   corresponding scratch-baseline results.
-- [`draft.md`](draft.md): additional interpretation of the errors and
-  limitations.
 
 ## Object-detection workflow
 
@@ -374,6 +386,8 @@ These detection metrics measure agreement with the available boxes, which
 began as YOLO-World pseudo-labels and were corrected by hand. They are not an
 independent measure of real-world detection accuracy. Each class has only
 14-21 test instances, so per-class results are indicative rather than precise.
+On validation, recall was low for pen, notebook, and usb cord; this may reflect
+denser box labeling in those validation images.
 
 Other detection utilities:
 
