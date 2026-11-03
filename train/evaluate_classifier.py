@@ -37,6 +37,7 @@ MODELS = {
 
 
 def evaluate(weights: Path, tag: str, classes: list) -> None:
+    # A missing optional baseline is reported and skipped so the available model can be scored.
     if not weights.is_file():
         print(f"[{tag}] weights not found: {weights}. Skipping.")
         return
@@ -49,6 +50,7 @@ def evaluate(weights: Path, tag: str, classes: list) -> None:
         )
 
     y_true, y_pred, wrong = [], [], []
+    # Evaluate only supported image formats and retain wrong cases for manual error analysis.
     for cls in classes:
         for image in sorted((TEST_DIR / cls).iterdir()):
             if image.suffix.lower() not in IMAGE_EXTENSIONS:
@@ -73,6 +75,7 @@ def evaluate(weights: Path, tag: str, classes: list) -> None:
     (OUT_DIR / f"{tag}_misclassified.txt").write_text("\n".join(wrong), encoding="utf-8")
 
     fig, ax = plt.subplots(figsize=(8, 8))
+    # Use the same class ordering for the confusion matrix and its axis labels.
     ConfusionMatrixDisplay(
         confusion_matrix(y_true, y_pred, labels=classes), display_labels=classes
     ).plot(ax=ax, xticks_rotation=45, colorbar=False)
@@ -87,6 +90,7 @@ def main() -> None:
     if not TEST_DIR.is_dir():
         raise SystemExit(f"Test folder not found: {TEST_DIR}")
     classes = sorted(p.name for p in TEST_DIR.iterdir() if p.is_dir())
+    # Evaluate transfer and scratch checkpoints against the same held-out folders.
     for tag, weights in MODELS.items():
         evaluate(weights, tag, classes)
 

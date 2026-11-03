@@ -20,6 +20,7 @@ CONF = 0.25
 
 
 def main():
+    # Refuse to evaluate stale or missing artifacts instead of producing misleading metrics.
     if not WEIGHTS.exists():
         raise SystemExit("final_model/best.pt not found. Run train_detector.py first.")
     if not TEST.is_dir():
@@ -36,6 +37,7 @@ def main():
     labels = classes + ["none"]
 
     y_true, y_pred, wrong = [], [], []
+    # Treat each image's most confident detection as its prediction; no box maps to "none".
     for cls in classes:
         for f in sorted((TEST / cls).glob("*.jpg")):
             r = model(str(f), conf=CONF, verbose=False)[0]
@@ -50,6 +52,7 @@ def main():
               + classification_report(y_true, y_pred, labels=idx,
                                       target_names=labels, zero_division=0))
     print(report)
+    # Persist the text report and error list alongside the plotted confusion matrix.
     (ROOT / "metrics.txt").write_text(report)
     (ROOT / "misclassified.txt").write_text("\n".join(wrong))
 

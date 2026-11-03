@@ -21,10 +21,12 @@ st.set_page_config(page_title="Office Vision", page_icon="◉", layout="wide")
 
 @st.cache_resource(show_spinner="Loading detector…")
 def load_model(model_path: str):
+    # Reuse the heavyweight model across Streamlit reruns and camera callbacks.
     return YOLO(model_path)
 
 
 def draw_predictions(image: np.ndarray, model, confidence: float, imgsz: int):
+    # Return an RGB rendering plus plain values that Streamlit can display or download.
     result = model.predict(image, conf=confidence, imgsz=imgsz, verbose=False)[0]
     plotted = result.plot()
     boxes = result.boxes
@@ -53,6 +55,7 @@ class DetectorProcessor(VideoProcessorBase):
 
     def recv(self, frame: av.VideoFrame) -> av.VideoFrame:
         image = frame.to_ndarray(format="bgr24")
+        # Guard inference and shared status because video processing and UI updates run concurrently.
         with self.lock:
             result = self.model.predict(
                 image, conf=self.confidence, imgsz=self.imgsz, verbose=False
@@ -61,6 +64,7 @@ class DetectorProcessor(VideoProcessorBase):
             now = time.perf_counter()
             elapsed = now - self.last_frame_time
             if elapsed > 0:
+                # Smooth frame-rate changes to avoid a noisy per-frame display.
                 self.fps = 0.85 * self.fps + 0.15 / elapsed if self.fps else 1 / elapsed
             self.last_frame_time = now
             self.detections = []
@@ -109,6 +113,7 @@ def render_camera_status(ctx):
     st.markdown("<div class='panel-title'>Session status</div>", unsafe_allow_html=True)
     if ctx.video_processor:
         processor = ctx.video_processor
+        # Copy status while holding the processor lock; render from the snapshot afterwards.
         with processor.lock:
             current_detections = list(processor.detections)
             fps = processor.fps
@@ -126,6 +131,7 @@ def render_camera_status(ctx):
         st.caption("Press **START** to grant camera access and begin local inference.")
 
 with st.sidebar:
+    # Keep model and inference controls together so either input mode uses the same settings.
     st.markdown("<div class='eyebrow'>System controls</div>", unsafe_allow_html=True)
     st.markdown("### Detector setup")
     model_path = st.text_input("Checkpoint path", value=os.environ.get("OFFICE_DETECTOR_MODEL", str(DEFAULT_MODEL)))
@@ -136,11 +142,13 @@ with st.sidebar:
     st.caption("Camera access requires HTTPS or localhost in most browsers. Select the Pi camera when launching this app on the Raspberry Pi.")
 
 if not Path(model_path).is_file():
+    # Stop before creating camera or upload controls when no checkpoint is available.
     st.error(f"Detector checkpoint not found: `{model_path}`")
     st.info("Copy the trained detector to `train/final_model/best.pt`, or set `OFFICE_DETECTOR_MODEL` to its path. The checkpoint is excluded from Git.")
     st.stop()
 
 try:
+    # Load early so both live-camera and still-image modes report setup failures consistently.
     detector = load_model(model_path)
 except Exception as exc:
     st.error(f"Could not load the detector: {exc}")
@@ -148,6 +156,7 @@ except Exception as exc:
 
 mode = st.radio("Operating mode", ["Live camera", "Image file"], horizontal=True, label_visibility="collapsed")
 if mode == "Live camera":
+    # The processor factory receives current settings when the WebRTC session starts.
     left, right = st.columns([1.7, 1], gap="large")
     with left:
         st.markdown("<div class='panel-title'>Live camera feed</div>", unsafe_allow_html=True)
@@ -164,6 +173,7 @@ if mode == "Live camera":
 else:
     uploaded = st.file_uploader("Choose a JPG or PNG image", type=["jpg", "jpeg", "png"])
     if uploaded:
+        # Normalize uploads to RGB before passing their pixels to the detector.
         image = Image.open(uploaded).convert("RGB")
         col_image, col_results = st.columns([1.55, 1], gap="large")
         with st.spinner("Detecting objects…"):
@@ -183,6 +193,7 @@ else:
                 st.info("No objects found. Try lowering the confidence threshold.")
             buffer = BytesIO()
             Image.fromarray(annotated).save(buffer, format="PNG")
+            # Offer the exact annotated result without writing temporary files to disk.
             st.download_button("Download annotated image", data=buffer.getvalue(), file_name="office-detections.png", mime="image/png")
     else:
         st.markdown("Upload one image to inspect its objects, confidence scores, and bounding boxes.")
