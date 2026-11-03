@@ -37,9 +37,11 @@ CLASSES = (
     "extension_box", "flash_drive", "mug",
     "notebook", "pen", "phone", "usb_cord", "water_bottle",
 )
+# Normalize known folder-name typos before matching paths to the supported classes.
 ALIASES = {"usd_cord": "usb_cord"}
 EXTENSIONS = {".jpg", ".jpeg", ".png", ".webp", ".bmp", ".tif", ".tiff"}
 SPLITS = ("train", "val", "test")
+# Keep report column order stable so generated CSVs are easy to compare.
 REPORT_COLUMNS = [
     "source", "class_name", "status", "reason", "sha256", "phash", "dhash",
     "width", "height", "quality_score", "sharpness", "contrast", "brightness",
@@ -48,6 +50,8 @@ REPORT_COLUMNS = [
 
 @dataclass
 class Photo:
+    """Image metadata retained through filtering, splitting, and reporting."""
+
     source: Path
     label: str
     sha: str
@@ -64,6 +68,7 @@ class Photo:
 
 
 def save_csv(path: Path, rows: list[dict], columns: list[str]) -> None:
+    # Create report directories on demand so the caller can pass a fresh output path.
     path.parent.mkdir(parents=True, exist_ok=True)
     with path.open("w", newline="", encoding="utf-8") as f:
         writer = csv.DictWriter(f, fieldnames=columns, extrasaction="ignore")
@@ -72,6 +77,7 @@ def save_csv(path: Path, rows: list[dict], columns: list[str]) -> None:
 
 
 def file_sha256(path: Path) -> str:
+    # Hash in bounded chunks so large source images do not need to fit in memory.
     sha = hashlib.sha256()
     with path.open("rb") as f:
         for block in iter(lambda: f.read(1024 * 1024), b""):
@@ -90,12 +96,14 @@ def load_image(path: Path) -> Image.Image:
 
 
 def label_from_path(file: Path, root: Path) -> str | None:
+    # A label is accepted only when exactly one supported class appears in the folders.
     parts = (ALIASES.get(s.lower(), s.lower()) for s in file.relative_to(root).parts[:-1])
     possible = set(parts) & set(CLASSES)
     return next(iter(possible)) if len(possible) == 1 else None
 
 
 def hash_perceptual(rgb: np.ndarray) -> int:
+    # Compare low-frequency image structure to recognize resized or recompressed copies.
     gray = cv2.cvtColor(rgb, cv2.COLOR_RGB2GRAY)
     resized = cv2.resize(gray, (32, 32), interpolation=cv2.INTER_AREA)
     frequencies = cv2.dct(np.float32(resized))[:8, :8]
@@ -110,6 +118,7 @@ def hash_perceptual(rgb: np.ndarray) -> int:
 
 
 def hash_difference(rgb: np.ndarray) -> int:
+    # Encode neighboring-pixel brightness changes as a second, complementary hash.
     gray = cv2.cvtColor(rgb, cv2.COLOR_RGB2GRAY)
     x = cv2.resize(gray, (9, 8), interpolation=cv2.INTER_AREA)
     result = 0
@@ -122,6 +131,7 @@ def inspect(path: Path, label: str, min_side: int) -> tuple[Photo | None, str]:
     try:
         photo = load_image(path)
         w, h = photo.size
+        # Reject unusable dimensions before doing the more expensive quality analysis.
         if min(w, h) < min_side:
             return None, f"too_small_{w}x{h}"
         if max(w, h) / min(w, h) > 4:
@@ -168,6 +178,7 @@ def inspect(path: Path, label: str, min_side: int) -> tuple[Photo | None, str]:
             round(entropy, 2), round(clipped, 4),
         ), "valid"
     except (OSError, ValueError, SyntaxError, UnidentifiedImageError, cv2.error) as e:
+        # Preserve the failure category in the audit instead of hiding why an image failed.
         return None, f"unreadable_{type(e).__name__}"
 
 
@@ -204,6 +215,7 @@ def select_photos(candidates: dict[str, list[Photo]], maximum: int,
     conflicted = {sha for sha, names in sha_labels.items() if len(names) > 1}
 
     selected: dict[str, list[Photo]] = {label: [] for label in CLASSES}
+    # Track accepted images across classes so near-duplicates cannot leak between splits.
     global_kept: list[Photo] = []
     for label in CLASSES:
         # Stable deterministic quality-first selection.
@@ -292,6 +304,7 @@ def make_before_after(pairs: list[tuple[Path, Path, float]], path: Path,
                       class_name: str, sample_size: int = 8) -> None:
     if not pairs:
         return
+    # Limit the contact sheet to a small sample to keep review images readable.
     pairs = pairs[:sample_size]
     tile_w, tile_h, gap = 250, 230, 14
     width = tile_w * 2 + gap * 3
@@ -346,6 +359,7 @@ def plot_distribution(summary: list[dict], path: Path) -> None:
 
 
 def split_counts(n: int, fill100: bool) -> tuple[int, int, int]:
+    # Use the coursework's fixed 70/15/15 layout when a class is being filled to 100.
     if fill100:
         return 70, 15, 15
     if n < 3:
@@ -364,6 +378,7 @@ def split_counts(n: int, fill100: bool) -> tuple[int, int, int]:
 
 def main() -> None:
     default_project = Path(__file__).resolve().parent
+    # Expose curation thresholds while anchoring defaults to this script's location.
     parser = argparse.ArgumentParser(description=__doc__,
         formatter_class=argparse.ArgumentDefaultsHelpFormatter)
     parser.add_argument("--raw", type=Path,
@@ -387,6 +402,7 @@ def main() -> None:
 
     raw = args.raw.expanduser().resolve()
     out = args.output.expanduser().resolve()
+    # Prevent accidental recursion or overwriting by requiring separate input/output trees.
     if not raw.is_dir():
         parser.error(f"Input folder does not exist: {raw}")
     if raw == out or raw in out.parents or out in raw.parents:
@@ -405,6 +421,7 @@ def main() -> None:
     found = Counter()
     candidates: dict[str, list[Photo]] = defaultdict(list)
     files = sorted(p for p in raw.rglob("*") if p.is_file() and p.suffix.lower() in EXTENSIONS)
+    # Fail early when the input tree cannot produce any class-labeled images.
     if not files:
         parser.error(f"No supported image files found under {raw}")
     if not any(label_from_path(file, raw) is not None for file in files):
@@ -436,6 +453,7 @@ def main() -> None:
 
     generated = [out / s for s in (*SPLITS, "reports", "figures")]
     existing = [p for p in generated if p.exists()]
+    # Never discard prior generated output: require explicit opt-in and move it to a backup.
     if existing and not args.overwrite:
         parser.error("Output already has generated folders. Add --overwrite to back them up first")
     if existing:
@@ -450,6 +468,7 @@ def main() -> None:
     shortfalls: list[dict] = []
 
     for label in CLASSES:
+        # Shuffle with the seeded RNG, then reserve validation/test originals before training.
         group = selected[label][:]
         rng.shuffle(group)
         n = len(group)
@@ -486,6 +505,7 @@ def main() -> None:
 
         n_aug = 0
         if fill_to_100:
+            # Cycle through real training sources; augmented copies never enter evaluation sets.
             n_aug = train_target - len(train_paths)
             for idx in range(n_aug):
                 parent = train_paths[idx % len(train_paths)]
@@ -521,6 +541,7 @@ def main() -> None:
               f"val {len(val):2d} | test {len(test):2d} | total={count_total:3d} | missing={need}")
 
     reports = out / "reports"
+    # Save both per-image provenance and per-class counts for reproducible review.
     save_csv(reports / "image_audit.csv", audit, REPORT_COLUMNS)
     save_csv(reports / "dataset_manifest.csv", manifest,
              ["class_name", "split", "source", "output", "sha256",
@@ -541,6 +562,7 @@ def main() -> None:
             correct = expected["train_real"] + expected["train_augmented"] if split == "train" else expected[f"{split}_real"]
             if len(actual) != correct:
                 raise RuntimeError(f"Wrong {split} count for {label}: {len(actual)} != {correct}")
+            # Re-open every output to catch corrupt writes before reporting success.
             for file in actual:
                 with Image.open(file) as check:
                     check.verify()
@@ -549,6 +571,7 @@ def main() -> None:
             if m["class_name"] == label:
                 by_split[m["split"]].add(m["parent_original_sha256"])
         for first, second in (("train", "val"), ("train", "test"), ("val", "test")):
+            # Parent hashes include augmented children, ensuring one source stays in one split.
             if by_split[first] & by_split[second]:
                 raise RuntimeError(f"Original-image leakage: {label} {first}/{second}")
 

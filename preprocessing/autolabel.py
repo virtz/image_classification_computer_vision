@@ -14,6 +14,7 @@ IMAGE_EXTENSIONS = {".jpg", ".jpeg", ".png", ".webp", ".bmp"}
 
 
 def main():
+    # Confirm the source has all expected splits before replacing generated detector data.
     if not SOURCE.is_dir():
         raise SystemExit(f"Classification dataset not found: {SOURCE}")
     if not all((SOURCE / split).is_dir() for split in ("train", "val", "test")):
@@ -44,6 +45,7 @@ def main():
                 raise SystemExit(f"No supported images found in {SOURCE / split / name}.")
 
     model = YOLOWorld("yolov8s-worldv2.pt")
+    # Track retained examples per class and images for which the model found no box.
     kept = {name: 0 for name in classes}
     skipped = []
 
@@ -53,6 +55,7 @@ def main():
         print(f"Previous output moved to {backup}")
 
     for split in ("train", "val", "test"):
+        # Keep the YOLO folder layout parallel across each data split.
         for subfolder in ("images", "labels"):
             (OUTPUT / subfolder / split).mkdir(parents=True, exist_ok=True)
         for class_id, name in enumerate(classes):
@@ -65,6 +68,7 @@ def main():
                 if path.is_file() and path.suffix.lower() in IMAGE_EXTENSIONS
             )
             for image_path in image_paths:
+                # Store only the strongest matching box as this pipeline's pseudo-label.
                 result = model(str(image_path), conf=PROMPT_CONFIDENCE, verbose=False)[0]
                 if len(result.boxes) == 0:
                     skipped.append(str(image_path))
@@ -82,6 +86,7 @@ def main():
                 kept[name] += 1
 
     names = "\n".join(f"  {index}: {name}" for index, name in enumerate(classes))
+    # Write paths relative to the generated dataset root for Ultralytics training.
     (OUTPUT / "data.yaml").write_text(
         f"path: {OUTPUT.resolve()}\n"
         "train: images/train\n"

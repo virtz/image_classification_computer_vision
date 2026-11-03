@@ -28,6 +28,7 @@ PROMPTS = {                       # clearer text than the folder names
 
 
 def main():
+    # Require the original autolabel run so class IDs and dataset configuration are available.
     if not (OUTPUT / "data.yaml").is_file():
         raise SystemExit(f"{OUTPUT / 'data.yaml'} not found. Run autolabel.py first.")
 
@@ -38,6 +39,7 @@ def main():
     still_missing = []
 
     for split in ("train", "val", "test"):
+        # Create any absent split directories without replacing existing corrected labels.
         for subfolder in ("images", "labels"):
             (OUTPUT / subfolder / split).mkdir(parents=True, exist_ok=True)
         for class_id, name in enumerate(classes):
@@ -56,6 +58,7 @@ def main():
                     still_missing.append(str(image_path))
                     continue
                 best = int(result.boxes.conf.argmax())
+                # Keep the highest-confidence normalized box, matching autolabel.py's format.
                 x, y, width, height = result.boxes.xywhn[best].tolist()
                 shutil.copy2(image_path, OUTPUT / "images" / split / output_name)
                 label_path = OUTPUT / "labels" / split / f"{Path(output_name).stem}.txt"

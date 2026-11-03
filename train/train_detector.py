@@ -24,6 +24,7 @@ SMOKE = os.environ.get("SMOKE") == "1"
 DEVICE = os.environ.get("DEVICE")          # None lets Ultralytics choose
 IMGSZ = 480
 
+# Keep smoke tests short while leaving the full experiment's stage lengths unchanged.
 E1, E2, ES = (1, 1, 1) if SMOKE else (15, 35, 50)
 
 COMMON = dict(data=DATA, imgsz=IMGSZ, batch=16, optimizer="AdamW",
@@ -34,6 +35,7 @@ if DEVICE:
 
 def best_val_score(run_dir):
     """Highest validation mAP50-95 reached in a run (from its results.csv)."""
+    # Read the recorded validation curve and compare runs by their best epoch.
     with open(Path(run_dir) / "results.csv") as f:
         rows = list(csv.DictReader(f))
     key = next(k for k in rows[0] if k.strip() == "metrics/mAP50-95(B)")
@@ -41,6 +43,7 @@ def best_val_score(run_dir):
 
 
 def main():
+    # Avoid starting model training when the expected detector labels are unavailable.
     if not Path(DATA).exists():
         raise SystemExit(
             "Detector data.yaml is missing. The existing classification dataset "
@@ -71,11 +74,13 @@ def main():
 
     # Pick the final transfer model by VALIDATION score (never the test set).
     s1, s2 = best_val_score(run1), best_val_score(run2)
+    # Select the transfer checkpoint using validation only; test data is reserved below.
     final_run, final_name = (run2, "stage 2") if s2 >= s1 else (run1, "stage 1")
     print(f"\nVal mAP50-95  stage1={s1:.3f}  stage2={s2:.3f}  scratch={best_val_score(runs):.3f}")
     print(f"Final model: {final_name}")
 
     if not SMOKE:
+        # Keep smoke runs isolated from the final-model directory and held-out test set.
         dest = ROOT / "final_model"
         dest.mkdir(exist_ok=True)
         shutil.copy(Path(final_run) / "weights" / "best.pt", dest / "best.pt")

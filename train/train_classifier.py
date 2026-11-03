@@ -18,6 +18,7 @@ from ultralytics import YOLO
 
 # Fix 1: resolve the repo root from this file's location (this file lives in train/)
 REPO_ROOT = Path(__file__).resolve().parent.parent
+# Keep dataset and output paths independent of the shell's current directory.
 DATA = str(REPO_ROOT / "data" / "office_items_dataset")
 LABELS_FILE = REPO_ROOT / "train" / "class_names.txt"
 
@@ -28,6 +29,7 @@ FINAL_DIR = REPO_ROOT / "train" / "final_model"
 
 def val_accuracy(results):
     """Top-1 validation accuracy from a finished training run."""
+    # Ultralytics versions may expose accuracy under either metric key.
     metrics = results.results_dict
     return metrics.get("metrics/accuracy_top1", metrics.get("fitness", 0.0))
 
@@ -83,6 +85,7 @@ scratch.train(
 )
 
 # Fix 3: choose the better transfer stage on validation accuracy and save it.
+# Compare only transfer stages here; the scratch run remains a separate baseline.
 acc1 = val_accuracy(results_stage1)
 acc2 = val_accuracy(results_stage2)
 chosen = results_stage2 if acc2 >= acc1 else results_stage1
@@ -91,6 +94,7 @@ shutil.copy(Path(chosen.save_dir) / "weights" / "best.pt", FINAL_DIR / "classifi
 dataset_classes = sorted(
     path.name for path in (Path(DATA) / "train").iterdir() if path.is_dir()
 )
+# Ensure the saved checkpoint and generated class-name file use the dataset's folder order.
 classifier = YOLO(str(FINAL_DIR / "classifier_best.pt"))
 class_names = [classifier.names[index] for index in range(len(classifier.names))]
 if class_names != dataset_classes:
