@@ -280,6 +280,48 @@ Results and supporting outputs:
   and [`train/classifier_scratch_misclassified.txt`](train/classifier_scratch_misclassified.txt):
   corresponding scratch-baseline results.
 
+## Experiments to improve recognition and inference
+
+The following configuration trials are recorded on the
+`feature/fine-tuning` branch. They describe attempted settings, not evidence
+that a new training run completed or improved validation/test accuracy. They
+also differ from the scripts on the branch represented by this README; check
+the current scripts before running experiments.
+
+### Classifier training trials
+
+On that branch, the pretrained classifier's frozen-feature stage was changed
+to freeze 5 layers instead of 9 and use 320-pixel images instead of 224. The
+full fine-tuning stage also used 320-pixel images. The scratch baseline
+remained at 224 pixels, so its input resolution differed from the transfer
+stages. Model selection continued to use validation accuracy, with the held-out
+test split reserved for final evaluation.
+
+### Detector training trials
+
+The detector's training image size was changed to 640, and its frozen stage
+froze 5 initial layers instead of 10. The full fine-tuning and scratch stages
+remained at 35 and 50 epochs, respectively. The notes state that smoke-test
+mode was removed on that branch. These are configuration changes to test;
+they do not by themselves establish that detector accuracy improved.
+
+### Live inference-size comparison
+
+The notes report that inference at 640 improved recognition, but made live
+camera processing noticeably slower. The app on that branch offered sizes
+224, 256, 288, 320, 416, 480, and 640, with 480 as its default. To compare
+sizes fairly, use the same checkpoint, confidence threshold, camera, and
+scene; let the displayed FPS settle, then compare both processing rate and
+detections of the same small, distant, or sideways objects. FPS depends on the
+device, camera, model, and Streamlit/WebRTC overhead, so measure it on the
+target hardware. Changing inference size does not retrain the model.
+
+In the current checked-out scripts, classifier training uses 224-pixel images
+(with 9 layers frozen in stage 1), detector training uses 480 pixels (with 10
+layers frozen in stage 1), and the UI offers sizes up to 480 with a default of
+320. A different detector training size requires retraining; inference-size
+changes affect runtime only.
+
 ## Object-detection workflow
 
 Detection is optional and uses images from the same classification splits.
