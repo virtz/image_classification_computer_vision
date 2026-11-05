@@ -17,6 +17,7 @@ ROOT = Path(__file__).parent
 WEIGHTS = ROOT / "final_model" / "best.pt"
 TEST = ROOT.parent / "data" / "office_items_dataset" / "test"
 CONF = 0.25
+IMAGE_EXTENSIONS = {".jpg", ".jpeg", ".png", ".webp", ".bmp"}
 
 
 def main():
@@ -39,7 +40,11 @@ def main():
     y_true, y_pred, wrong = [], [], []
     # Use the strongest box as the image prediction; no box means "none".
     for cls in classes:
-        for f in sorted((TEST / cls).glob("*.jpg")):
+        images = sorted(
+            path for path in (TEST / cls).iterdir()
+            if path.is_file() and path.suffix.lower() in IMAGE_EXTENSIONS
+        )
+        for f in images:
             r = model(str(f), conf=CONF, verbose=False)[0]
             pred = int(r.boxes.cls[r.boxes.conf.argmax()]) if len(r.boxes) else len(classes)
             y_true.append(classes.index(cls)); y_pred.append(pred)
