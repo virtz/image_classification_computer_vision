@@ -1,4 +1,4 @@
-"""Render a sample of generated boxes for manual pseudo-label review."""
+"""Draw a sample of detector labels so they can be checked by eye."""
 import random
 from pathlib import Path
 
@@ -23,7 +23,7 @@ def main():
         if line.startswith("  ") and ": " in line
     ]
 
-    # Separate multi-box examples first so the review sample includes those cases when possible.
+    # Include multi-box examples first, then fill the sample with single-box ones.
     images = sorted(
         path for path in (ROOT / "images" / SPLIT).iterdir()
         if path.is_file() and path.suffix.lower() in IMAGE_EXTENSIONS
@@ -48,7 +48,7 @@ def main():
                     min(remaining, len(single_box_images))))
     selected.sort()
 
-    # Remove only prior image previews; leave dataset images and labels untouched.
+    # Clear old previews without touching the actual dataset.
     for old_preview in PREVIEW.iterdir():
         if old_preview.is_file() and old_preview.suffix.lower() in IMAGE_EXTENSIONS:
             old_preview.unlink()
@@ -59,7 +59,7 @@ def main():
         if image is None or not label_path.is_file():
             continue
         height, width = image.shape[:2]
-        # Validate each YOLO row before converting normalized center boxes to pixels.
+        # Check each label before drawing its box.
         for line_number, line in enumerate(
             label_path.read_text(encoding="utf-8").splitlines(), start=1
         ):
@@ -90,7 +90,7 @@ def main():
                 )
 
             center_x, center_y = x * width, y * height
-            # Convert from normalized center/size form to OpenCV's pixel-corner coordinates.
+            # Turn the normalized center and size into pixel corner points.
             pixel_box_width, pixel_box_height = box_width * width, box_height * height
             point1 = (
                 int(center_x - pixel_box_width / 2),

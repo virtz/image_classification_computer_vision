@@ -1,12 +1,10 @@
-"""Evaluate the office-item classifier on the held-out test folder.
+"""Evaluate the classifier using the held-out test images.
 
-Scores the chosen transfer model and the scratch baseline, and writes, per model:
-  train/<tag>_metrics.txt            accuracy, macro-F1, per-class precision/recall/F1
-  train/<tag>_misclassified.txt      every wrong prediction, for the error analysis
-  train/<tag>_confusion_matrix.png   confusion matrix
+It scores the selected transfer model and scratch baseline, then saves a
+metrics report, a list of wrong predictions, and a confusion matrix for each.
 
-Run ONCE, after training is final. Do not retrain or tune based on these numbers.
-Place in the train/ folder and run from the repo root:
+Run after training is finished. These test results shouldn't be used to tune
+the models. Run from the repository root:
     .venv/bin/python train/evaluate_classifier.py
 """
 from pathlib import Path
@@ -37,8 +35,8 @@ MODELS = {
 
 
 def evaluate(weights: Path, tag: str, classes: list) -> None:
-    # A missing optional baseline is reported and skipped so the available model can be scored.
-    if not weights.is_file():
+  
+    if not weights.is_file():   # The scratch checkpoint is optional, so keep going if it's missing.
         print(f"[{tag}] weights not found: {weights}. Skipping.")
         return
     model = YOLO(str(weights))
@@ -50,7 +48,7 @@ def evaluate(weights: Path, tag: str, classes: list) -> None:
         )
 
     y_true, y_pred, wrong = [], [], []
-    # Evaluate only supported image formats and retain wrong cases for manual error analysis.
+    # Score each test image and keep a note of the mistakes.
     for cls in classes:
         for image in sorted((TEST_DIR / cls).iterdir()):
             if image.suffix.lower() not in IMAGE_EXTENSIONS:
@@ -75,7 +73,7 @@ def evaluate(weights: Path, tag: str, classes: list) -> None:
     (OUT_DIR / f"{tag}_misclassified.txt").write_text("\n".join(wrong), encoding="utf-8")
 
     fig, ax = plt.subplots(figsize=(8, 8))
-    # Use the same class ordering for the confusion matrix and its axis labels.
+    # Keep the matrix labels in the same order as the class list.
     ConfusionMatrixDisplay(
         confusion_matrix(y_true, y_pred, labels=classes), display_labels=classes
     ).plot(ax=ax, xticks_rotation=45, colorbar=False)
@@ -90,7 +88,7 @@ def main() -> None:
     if not TEST_DIR.is_dir():
         raise SystemExit(f"Test folder not found: {TEST_DIR}")
     classes = sorted(p.name for p in TEST_DIR.iterdir() if p.is_dir())
-    # Evaluate transfer and scratch checkpoints against the same held-out folders.
+    # Score both checkpoints on the same test folders.
     for tag, weights in MODELS.items():
         evaluate(weights, tag, classes)
 

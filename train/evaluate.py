@@ -1,8 +1,8 @@
-"""Step 5: accuracy, macro-F1 and confusion matrix on the held-out test images.
+"""Evaluate the detector on the held-out test images.
 
-Uses the folder name as the true class and the highest-confidence box as the
-prediction. An image with no box counts as the extra class 'none' (wrong).
-Output: confusion_matrix.png, misclassified.txt, metrics.txt
+The image's folder gives its true class. The highest-confidence detection is
+used as the prediction; images with no detections are counted as "none".
+The script saves confusion_matrix.png, misclassified.txt, and metrics.txt.
 """
 from pathlib import Path
 
@@ -20,7 +20,7 @@ CONF = 0.25
 
 
 def main():
-    # Refuse to evaluate stale or missing artifacts instead of producing misleading metrics.
+    # Check the model and test folder before starting evaluation.
     if not WEIGHTS.exists():
         raise SystemExit("final_model/best.pt not found. Run train_detector.py first.")
     if not TEST.is_dir():
@@ -37,7 +37,7 @@ def main():
     labels = classes + ["none"]
 
     y_true, y_pred, wrong = [], [], []
-    # Treat each image's most confident detection as its prediction; no box maps to "none".
+    # Use the strongest box as the image prediction; no box means "none".
     for cls in classes:
         for f in sorted((TEST / cls).glob("*.jpg")):
             r = model(str(f), conf=CONF, verbose=False)[0]
@@ -52,7 +52,7 @@ def main():
               + classification_report(y_true, y_pred, labels=idx,
                                       target_names=labels, zero_division=0))
     print(report)
-    # Persist the text report and error list alongside the plotted confusion matrix.
+    # Save the numbers and mistakes as well as printing the report.
     (ROOT / "metrics.txt").write_text(report)
     (ROOT / "misclassified.txt").write_text("\n".join(wrong))
 

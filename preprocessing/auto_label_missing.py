@@ -1,12 +1,10 @@
-"""Add pseudo-labels for images that autolabel.py skipped, without touching existing ones.
+"""Add box labels for images that autolabel.py didn't label.
 
-autolabel.py moves the whole detect_dataset to a backup when it reruns, which would
-discard hand-corrected boxes. This script instead only adds images that are not already
-in detect_dataset, using the same file naming, the same class IDs and a lower confidence
-threshold. Review every new box by hand afterwards (confidence 0.05 gives more wrong
-boxes than 0.25).
+Unlike autolabel.py, this script leaves the existing detector dataset alone.
+It uses the same class IDs and filenames, with a lower confidence threshold,
+so check the new boxes by hand.
 
-Place in preprocessing/ and run from the repo root:
+Run from the repository root:
     .venv/bin/python preprocessing/autolabel_missing.py
 """
 import shutil
@@ -28,18 +26,18 @@ PROMPTS = {                       # clearer text than the folder names
 
 
 def main():
-    # Require the original autolabel run so class IDs and dataset configuration are available.
+    # The first autolabel run needs to have created data.yaml.
     if not (OUTPUT / "data.yaml").is_file():
         raise SystemExit(f"{OUTPUT / 'data.yaml'} not found. Run autolabel.py first.")
 
-    # Same class IDs as autolabel.py: sorted folder names under train/.
+    # Keep class IDs in the same sorted order as autolabel.py.
     classes = sorted(p.name for p in (SOURCE / "train").iterdir() if p.is_dir())
     model = YOLOWorld("yolov8s-worldv2.pt")
     added = {name: 0 for name in classes}
     still_missing = []
 
     for split in ("train", "val", "test"):
-        # Create any absent split directories without replacing existing corrected labels.
+        # Make missing folders, but leave existing labels alone.
         for subfolder in ("images", "labels"):
             (OUTPUT / subfolder / split).mkdir(parents=True, exist_ok=True)
         for class_id, name in enumerate(classes):
@@ -49,7 +47,7 @@ def main():
             for image_path in sorted((SOURCE / split / name).iterdir()):
                 if not image_path.is_file() or image_path.suffix.lower() not in IMAGE_EXTENSIONS:
                     continue
-                # Same naming as autolabel.py, so existing (corrected) pairs are recognised.
+                # Use the same filename pattern so we can spot images already added.
                 output_name = f"{class_id}_{name}_{image_path.stem}{image_path.suffix.lower()}"
                 if (OUTPUT / "images" / split / output_name).exists():
                     continue
@@ -58,7 +56,7 @@ def main():
                     still_missing.append(str(image_path))
                     continue
                 best = int(result.boxes.conf.argmax())
-                # Keep the highest-confidence normalized box, matching autolabel.py's format.
+                # Save the highest-confidence box in YOLO's normalized format.
                 x, y, width, height = result.boxes.xywhn[best].tolist()
                 shutil.copy2(image_path, OUTPUT / "images" / split / output_name)
                 label_path = OUTPUT / "labels" / split / f"{Path(output_name).stem}.txt"
