@@ -37,6 +37,7 @@ data/office_items_dataset/test/water_bottle/water_bottle_003_2affa32f0c62.jpg  t
 data/office_items_dataset/test/water_bottle/water_bottle_005_010783534606.jpg  true=water_bottle  pred=phone  conf=0.36
 data/office_items_dataset/test/water_bottle/water_bottle_007_0961cd7adb77.jpg  true=water_bottle  pred=pen  conf=0.58
 data/office_items_dataset/test/water_bottle/water_bottle_008_3f7191710388.jpg  true=water_bottle  pred=pen  conf=0.72
+data/office_items_dataset/test/water_bottle/water_bottle_010.jpg  true=water_bottle  pred=phone  conf=0.59
 data/office_items_dataset/test/water_bottle/water_bottle_012_355387eabfe9.jpg  true=water_bottle  pred=mug  conf=0.41
 data/office_items_dataset/test/water_bottle/water_bottle_014_1bfa479dcfa8.jpg  true=water_bottle  pred=flash_drive  conf=0.67
 data/office_items_dataset/test/water_bottle/water_bottle_015_057140fe1c92.jpg  true=water_bottle  pred=phone  conf=0.39
