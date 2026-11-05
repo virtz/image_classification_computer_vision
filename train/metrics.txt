@@ -1,0 +1,18 @@
+Accuracy: 0.788
+Macro-F1: 0.732
+
+               precision    recall  f1-score   support
+
+extension_box       1.00      1.00      1.00        15
+  flash_drive       0.88      1.00      0.93        14
+          mug       0.70      0.93      0.80        15
+     notebook       1.00      0.67      0.80        15
+          pen       1.00      0.47      0.64        15
+        phone       1.00      0.93      0.97        15
+     usb_cord       1.00      0.53      0.70        15
+ water_bottle       0.73      0.79      0.76        14
+         none       0.00      0.00      0.00         0
+
+     accuracy                           0.79       118
+    macro avg       0.81      0.70      0.73       118
+ weighted avg       0.92      0.79      0.82       118

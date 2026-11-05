@@ -1,0 +1,4 @@
+run            best val mAP50   mAP50 at epoch 5
+stage 1        0.833            0.527
+stage 2        0.833            -
+scratch        0.384            0.018
