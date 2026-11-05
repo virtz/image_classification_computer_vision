@@ -169,11 +169,3 @@ If missing, rerun the training scripts.
 python -m pip install -r requirements.txt
 ```
 
-## Project references
-
-See:
-
-- [`PROJECT_REPORT.md`](PROJECT_REPORT.md)
-- [`PIPELINE.md`](PIPELINE.md)
-
-These files contain the recorded results, model summary, and error analysis.
