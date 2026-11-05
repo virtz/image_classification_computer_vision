@@ -1,20 +1,20 @@
 #!/usr/bin/env python3
-"""Advanced, non-destructive office-item image dataset curation.
+"""Prepare the office-item images for training.
 
-Dependencies:
+Install these packages first:
     python -m pip install numpy pillow opencv-python matplotlib
 
-Run from the repository root (script may be copied there):
+Then run this from the repository root:
     python prepare_office_dataset.py --raw preprocessing/raw_dataset
 
-Produces 100 files/class (70 train, 15 val, 15 test) when at least
---min-real-for-100 usable distinct REAL photos/class remain after curation.
-Only TRAIN is augmented; validation and test ALWAYS contain real photos.
-If a class cannot be safely filled to 100, it remains smaller and the
-shortfall is explicitly recorded. Raw images are never changed/deleted.
+The script aims for 100 images per class, split into 70 train, 15 validation,
+and 15 test images when enough usable original photos are available. It only
+augments the training split; validation and test keep the original photos.
+If there aren't enough suitable originals, the class stays smaller and the
+shortfall is recorded. The raw images are left as they are.
 
-The script cannot guarantee correct labels or genuine new images; review
-contact sheets and the audit report before training.
+Check the contact sheets and audit report before training. This script can't
+confirm that every label is correct or that augmented images look realistic.
 """
 from __future__ import annotations
 
@@ -37,11 +37,11 @@ CLASSES = (
     "extension_box", "flash_drive", "mug",
     "notebook", "pen", "phone", "usb_cord", "water_bottle",
 )
-# Normalize known folder-name typos before matching paths to the supported classes.
+# Fix this known folder-name typo before matching classes.
 ALIASES = {"usd_cord": "usb_cord"}
 EXTENSIONS = {".jpg", ".jpeg", ".png", ".webp", ".bmp", ".tif", ".tiff"}
 SPLITS = ("train", "val", "test")
-# Keep report column order stable so generated CSVs are easy to compare.
+# Keep the CSV columns in the same order each time.
 REPORT_COLUMNS = [
     "source", "class_name", "status", "reason", "sha256", "phash", "dhash",
     "width", "height", "quality_score", "sharpness", "contrast", "brightness",
@@ -68,7 +68,7 @@ class Photo:
 
 
 def save_csv(path: Path, rows: list[dict], columns: list[str]) -> None:
-    # Create report directories on demand so the caller can pass a fresh output path.
+    # Make the report folder if it doesn't exist yet.
     path.parent.mkdir(parents=True, exist_ok=True)
     with path.open("w", newline="", encoding="utf-8") as f:
         writer = csv.DictWriter(f, fieldnames=columns, extrasaction="ignore")
@@ -77,7 +77,7 @@ def save_csv(path: Path, rows: list[dict], columns: list[str]) -> None:
 
 
 def file_sha256(path: Path) -> str:
-    # Hash in bounded chunks so large source images do not need to fit in memory.
+    # Read in chunks so big images don't have to fit in memory all at once.
     sha = hashlib.sha256()
     with path.open("rb") as f:
         for block in iter(lambda: f.read(1024 * 1024), b""):
@@ -96,14 +96,14 @@ def load_image(path: Path) -> Image.Image:
 
 
 def label_from_path(file: Path, root: Path) -> str | None:
-    # A label is accepted only when exactly one supported class appears in the folders.
+    # Use a label only if there's exactly one matching class folder.
     parts = (ALIASES.get(s.lower(), s.lower()) for s in file.relative_to(root).parts[:-1])
     possible = set(parts) & set(CLASSES)
     return next(iter(possible)) if len(possible) == 1 else None
 
 
 def hash_perceptual(rgb: np.ndarray) -> int:
-    # Compare low-frequency image structure to recognize resized or recompressed copies.
+    # Use the image's overall pattern to catch resized or recompressed copies.
     gray = cv2.cvtColor(rgb, cv2.COLOR_RGB2GRAY)
     resized = cv2.resize(gray, (32, 32), interpolation=cv2.INTER_AREA)
     frequencies = cv2.dct(np.float32(resized))[:8, :8]
@@ -118,7 +118,7 @@ def hash_perceptual(rgb: np.ndarray) -> int:
 
 
 def hash_difference(rgb: np.ndarray) -> int:
-    # Encode neighboring-pixel brightness changes as a second, complementary hash.
+    # This second hash compares brightness changes between neighboring pixels.
     gray = cv2.cvtColor(rgb, cv2.COLOR_RGB2GRAY)
     x = cv2.resize(gray, (9, 8), interpolation=cv2.INTER_AREA)
     result = 0
@@ -131,13 +131,13 @@ def inspect(path: Path, label: str, min_side: int) -> tuple[Photo | None, str]:
     try:
         photo = load_image(path)
         w, h = photo.size
-        # Reject unusable dimensions before doing the more expensive quality analysis.
+        # Skip images that are too small or unusually stretched.
         if min(w, h) < min_side:
             return None, f"too_small_{w}x{h}"
         if max(w, h) / min(w, h) > 4:
             return None, "extreme_aspect_ratio"
 
-        # Analyze a fixed-resolution preview so sharpness is comparable.
+        # Use the same preview size when measuring sharpness and contrast.
         photo.thumbnail((512, 512), Image.Resampling.LANCZOS)
         rgb = np.asarray(photo)
         gray = cv2.cvtColor(rgb, cv2.COLOR_RGB2GRAY)
@@ -150,8 +150,8 @@ def inspect(path: Path, label: str, min_side: int) -> tuple[Photo | None, str]:
         entropy = float(-(prob * np.log2(prob)).sum())
         clipped = float(np.mean((gray <= 4) | (gray >= 251)))
 
-        # Reject only obvious technical failures; natural smooth product
-        # backgrounds can be valid. Never auto-delete ambiguous labels.
+        # Only reject clear image-quality problems. A plain background can be normal,
+        # and the script can't tell whether the folder label is right.
         if contrast < 5 and entropy < 3:
             return None, "near_blank"
         if sharpness < 5 and contrast < 13:
@@ -159,7 +159,7 @@ def inspect(path: Path, label: str, min_side: int) -> tuple[Photo | None, str]:
         if clipped > 0.97 and entropy < 2:
             return None, "mostly_clipped"
 
-        # Quality is a heuristic for relative ranking, NOT learned aesthetics.
+        # This score is just a rough way to rank photos, not a learned quality measure.
         detail_score = min(1, math.log1p(sharpness) / math.log1p(450))
         contrast_score = min(1, contrast / 66)
         entropy_score = min(1, entropy / 7.4)
@@ -178,7 +178,7 @@ def inspect(path: Path, label: str, min_side: int) -> tuple[Photo | None, str]:
             round(entropy, 2), round(clipped, 4),
         ), "valid"
     except (OSError, ValueError, SyntaxError, UnidentifiedImageError, cv2.error) as e:
-        # Preserve the failure category in the audit instead of hiding why an image failed.
+        # Keep the error type so it's clear why this image was skipped.
         return None, f"unreadable_{type(e).__name__}"
 
 
@@ -199,15 +199,15 @@ def near_duplicate(a: Photo, b: Photo, max_phash: int) -> bool:
         return True
     hd_p = (a.phash ^ b.phash).bit_count()
     hd_d = (a.dhash ^ b.dhash).bit_count()
-    # Two complementary hashes reduce false positives for product images
-    # with simple backgrounds; threshold is intentionally conservative.
+    # Requiring both hashes to match helps avoid flagging different products
+    # with similar plain backgrounds.
     return hd_p <= max_phash and hd_d <= 7
 
 
 def select_photos(candidates: dict[str, list[Photo]], maximum: int,
                   phash_distance: int, audit: list[dict]) -> dict[str, list[Photo]]:
-    # If an exactly identical file is labeled as two different classes,
-    # exclude all occurrences and flag a potential labeling error.
+    # The same exact file under different labels is probably mislabeled,
+    # so leave all copies out and note the conflict.
     sha_labels: dict[str, set[str]] = defaultdict(set)
     for pictures in candidates.values():
         for p in pictures:
@@ -215,10 +215,10 @@ def select_photos(candidates: dict[str, list[Photo]], maximum: int,
     conflicted = {sha for sha, names in sha_labels.items() if len(names) > 1}
 
     selected: dict[str, list[Photo]] = {label: [] for label in CLASSES}
-    # Track accepted images across classes so near-duplicates cannot leak between splits.
+    # Check against images from every class, not just this one.
     global_kept: list[Photo] = []
     for label in CLASSES:
-        # Stable deterministic quality-first selection.
+        # Prefer better-scoring photos; use the path to break ties consistently.
         ranked = sorted(candidates.get(label, []), key=lambda x: (-x.quality, str(x.source)))
         for p in ranked:
             if p.sha in conflicted:
@@ -251,7 +251,7 @@ def smart_enhance(src: Image.Image, mode: str, max_dimension: int) -> Image.Imag
     lightness = lab[:, :, 0]
     median = float(np.median(lightness))
 
-    # Only correct clearly dark or bright photographs. Avoid dramatic shifts.
+    # Make only a small brightness adjustment for very dark or bright photos.
     if median < 80:
         gamma = 0.88
     elif median > 190:
@@ -263,14 +263,13 @@ def smart_enhance(src: Image.Image, mode: str, max_dimension: int) -> Image.Imag
                         for i in range(256)], dtype=np.uint8)
         lightness = cv2.LUT(lightness, lut)
 
-    # Mild local contrast in LAB minimizes color distortion. Blend to preserve
-    # the photograph's authentic textures, colors and lighting.
+    # Add a little local contrast in the lightness channel to avoid shifting colors.
     clahe = cv2.createCLAHE(clipLimit=1.4, tileGridSize=(8, 8))
     enhanced_l = clahe.apply(lightness)
     lab[:, :, 0] = cv2.addWeighted(lightness, 0.72, enhanced_l, 0.28, 0)
     improved = cv2.cvtColor(lab, cv2.COLOR_LAB2RGB)
 
-    # Gentle sharpening only if the source already has some reliable detail.
+    # Sharpen only when the image already has some detail.
     gray = cv2.cvtColor(improved, cv2.COLOR_RGB2GRAY)
     lap_var = float(cv2.Laplacian(gray, cv2.CV_64F).var())
     if 40 < lap_var < 550:
@@ -304,7 +303,7 @@ def make_before_after(pairs: list[tuple[Path, Path, float]], path: Path,
                       class_name: str, sample_size: int = 8) -> None:
     if not pairs:
         return
-    # Limit the contact sheet to a small sample to keep review images readable.
+    # Keep the contact sheet small enough to review easily.
     pairs = pairs[:sample_size]
     tile_w, tile_h, gap = 250, 230, 14
     width = tile_w * 2 + gap * 3
@@ -330,7 +329,7 @@ def make_before_after(pairs: list[tuple[Path, Path, float]], path: Path,
 
 
 def plot_distribution(summary: list[dict], path: Path) -> None:
-    # A simple publication-style high-resolution figure.
+    # Save a clear, high-resolution class-count chart.
     import matplotlib
     matplotlib.use("Agg")
     import matplotlib.pyplot as plt
@@ -359,7 +358,7 @@ def plot_distribution(summary: list[dict], path: Path) -> None:
 
 
 def split_counts(n: int, fill100: bool) -> tuple[int, int, int]:
-    # Use the coursework's fixed 70/15/15 layout when a class is being filled to 100.
+    # When filling a class to 100, use the project's 70/15/15 split.
     if fill100:
         return 70, 15, 15
     if n < 3:
@@ -378,7 +377,7 @@ def split_counts(n: int, fill100: bool) -> tuple[int, int, int]:
 
 def main() -> None:
     default_project = Path(__file__).resolve().parent
-    # Expose curation thresholds while anchoring defaults to this script's location.
+    # Set up the options; keep default paths relative to this script.
     parser = argparse.ArgumentParser(description=__doc__,
         formatter_class=argparse.ArgumentDefaultsHelpFormatter)
     parser.add_argument("--raw", type=Path,
@@ -402,7 +401,7 @@ def main() -> None:
 
     raw = args.raw.expanduser().resolve()
     out = args.output.expanduser().resolve()
-    # Prevent accidental recursion or overwriting by requiring separate input/output trees.
+    # Keep the input and output folders separate so the scan can't pick up its own output.
     if not raw.is_dir():
         parser.error(f"Input folder does not exist: {raw}")
     if raw == out or raw in out.parents or out in raw.parents:
@@ -421,7 +420,7 @@ def main() -> None:
     found = Counter()
     candidates: dict[str, list[Photo]] = defaultdict(list)
     files = sorted(p for p in raw.rglob("*") if p.is_file() and p.suffix.lower() in EXTENSIONS)
-    # Fail early when the input tree cannot produce any class-labeled images.
+    # Stop now if there are no usable image files or class folders to scan.
     if not files:
         parser.error(f"No supported image files found under {raw}")
     if not any(label_from_path(file, raw) is not None for file in files):
@@ -453,7 +452,7 @@ def main() -> None:
 
     generated = [out / s for s in (*SPLITS, "reports", "figures")]
     existing = [p for p in generated if p.exists()]
-    # Never discard prior generated output: require explicit opt-in and move it to a backup.
+    # Don't replace an earlier dataset unless asked; move it to a backup first.
     if existing and not args.overwrite:
         parser.error("Output already has generated folders. Add --overwrite to back them up first")
     if existing:
@@ -468,7 +467,7 @@ def main() -> None:
     shortfalls: list[dict] = []
 
     for label in CLASSES:
-        # Shuffle with the seeded RNG, then reserve validation/test originals before training.
+        # Shuffle consistently, then set aside the validation and test photos.
         group = selected[label][:]
         rng.shuffle(group)
         n = len(group)
@@ -477,7 +476,7 @@ def main() -> None:
         val = group[:val_n]
         test = group[val_n:val_n + test_n]
         train = group[val_n + test_n:]
-        # Only a few originals in train with large artificial fill is risky.
+        # Warn if the training set would have to rely on too few real photos.
         if fill_to_100 and len(train) < 30:
             print(f"CAUTION: {label} has only {len(train)} independent training photographs")
 
@@ -505,7 +504,7 @@ def main() -> None:
 
         n_aug = 0
         if fill_to_100:
-            # Cycle through real training sources; augmented copies never enter evaluation sets.
+            # Make extra training examples from training photos only.
             n_aug = train_target - len(train_paths)
             for idx in range(n_aug):
                 parent = train_paths[idx % len(train_paths)]
@@ -541,7 +540,7 @@ def main() -> None:
               f"val {len(val):2d} | test {len(test):2d} | total={count_total:3d} | missing={need}")
 
     reports = out / "reports"
-    # Save both per-image provenance and per-class counts for reproducible review.
+    # Save the image-level audit and the class counts for later review.
     save_csv(reports / "image_audit.csv", audit, REPORT_COLUMNS)
     save_csv(reports / "dataset_manifest.csv", manifest,
              ["class_name", "split", "source", "output", "sha256",
@@ -554,7 +553,7 @@ def main() -> None:
              ["class_name", "additional_real_images_needed", "note"])
     plot_distribution(summary, out / "figures" / "class_distribution.png")
 
-    # Final checks: file count, readibility, and original photo family leakage.
+    # Check file counts, image readability, and that photo copies didn't cross splits.
     for label in CLASSES:
         expected = next(s for s in summary if s["class_name"] == label)
         for split in SPLITS:
@@ -562,7 +561,7 @@ def main() -> None:
             correct = expected["train_real"] + expected["train_augmented"] if split == "train" else expected[f"{split}_real"]
             if len(actual) != correct:
                 raise RuntimeError(f"Wrong {split} count for {label}: {len(actual)} != {correct}")
-            # Re-open every output to catch corrupt writes before reporting success.
+            # Try opening each saved image to catch broken output files.
             for file in actual:
                 with Image.open(file) as check:
                     check.verify()
@@ -571,7 +570,7 @@ def main() -> None:
             if m["class_name"] == label:
                 by_split[m["split"]].add(m["parent_original_sha256"])
         for first, second in (("train", "val"), ("train", "test"), ("val", "test")):
-            # Parent hashes include augmented children, ensuring one source stays in one split.
+            # Augmented copies count as their source photo for this split check.
             if by_split[first] & by_split[second]:
                 raise RuntimeError(f"Original-image leakage: {label} {first}/{second}")
 

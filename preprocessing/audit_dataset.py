@@ -1,17 +1,11 @@
-"""One check for the whole detector dataset (replaces the audit, count, verify and find-missing scripts).
+"""Check the detector dataset and report any missing or invalid labels.
 
-For every split and class it shows:
-  folder   photos in data/office_items_dataset
-  labelled photos that already have a box in detect_dataset
-  missing  photos that still need a box (also written to detect_dataset/missing_boxes.txt)
-  boxes    boxes of that class in the label files
-It also verifies that images and labels match and that every label line is valid, and
-warns about classes that are too thin to train on or to score.
+For each class and split, the report shows the source photos, labelled photos,
+missing labels, and box counts. It also checks that image and label files pair
+up and that each label line is valid.
 
-Missing photos are computed fresh from the files, so the numbers stay correct after you
-import hand-drawn boxes (skipped.txt and skipped_after_retry.txt go out of date).
-
-Place in preprocessing/ and run from the repo root:
+Missing photos are found from the current files, not from old skip lists. Run
+from the repository root:
     .venv/bin/python preprocessing/audit_dataset.py
 """
 from collections import Counter
@@ -29,7 +23,7 @@ MIN_EVAL = 5     # warn if a class has fewer boxes than this in val or test
 
 
 def load_names():
-    # Accept both YAML name encodings: a sequence or an ID-keyed mapping.
+    # data.yaml can store names as a list or as an ID-keyed mapping.
     raw = yaml.safe_load((DET / "data.yaml").read_text(encoding="utf-8"))["names"]
     return raw if isinstance(raw, list) else [raw[key] for key in sorted(raw)]
 
@@ -42,7 +36,7 @@ def images_in(folder: Path):
 
 def main():
     names = load_names()
-    # Compare configured class IDs with the source folders before auditing each split.
+    # Check that the YAML class order matches the source folders.
     classes = sorted(p.name for p in (SOURCE / "train").iterdir() if p.is_dir())
     if names != classes:
         print("WARNING: data.yaml classes differ from the dataset folders")
@@ -51,7 +45,7 @@ def main():
 
     warnings, missing_paths = [], []
     for split in SPLITS:
-        # Stems are the shared key used to pair detector images with YOLO label files.
+        # Match image and label files by their filename stem.
         det_stems = {p.stem for p in images_in(DET / "images" / split)}
         label_files = {p.stem: p for p in (DET / "labels" / split).glob("*.txt")}
 
@@ -65,7 +59,7 @@ def main():
                 parts = line.split()
                 try:
                     class_id = int(parts[0])
-                    # YOLO rows contain a class ID and four normalized box coordinates.
+                    # A YOLO row has a class ID and four coordinates between 0 and 1.
                     ok = (len(parts) == 5 and 0 <= class_id < len(names)
                           and all(0 <= float(v) <= 1 for v in parts[1:]))
                 except ValueError:
@@ -103,7 +97,7 @@ def main():
         if bad_lines:
             warnings.append(f"{split}: {len(bad_lines)} invalid label lines, e.g. {bad_lines[:3]}")
 
-    # Rebuild the missing list from current files instead of trusting stale retry logs.
+    # Recreate this list from the files so it isn't out of date.
     (DET / "missing_boxes.txt").write_text("\n".join(missing_paths), encoding="utf-8")
     print(f"\n{len(missing_paths)} photos still need a box (listed in {DET / 'missing_boxes.txt'}).")
     if warnings:

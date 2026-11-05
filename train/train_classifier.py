@@ -1,14 +1,14 @@
-"""Train the office-item classifier (YOLOv8n-cls).
+"""Train the office-item image classifier.
 
-Three experiments, 30 epochs of training each, so the comparison is fair:
-  1. Stage 1: pretrained backbone frozen, only the new head trains (10 epochs)
-  2. Stage 2: fine-tune the whole model from stage 1's best weights (20 epochs)
-  3. Scratch baseline: same architecture, random weights (30 epochs)
+This script runs three experiments:
+  1. Train the new classifier head for 10 epochs, with the pretrained layers frozen.
+  2. Fine-tune the full model for 20 more epochs, starting from stage 1.
+  3. Train the same model for 30 epochs with random weights as a baseline.
 
-The better of stage 1 and stage 2 is chosen on VALIDATION accuracy (never test)
-and copied to train/final_model/classifier_best.pt.
+The transfer model with the better validation accuracy is saved as
+train/final_model/classifier_best.pt. The test set isn't used to choose it.
 
-Place this file in the repo's train/ folder and run from the repo root:
+Run this from the repository root:
     .venv/bin/python train/train_classifier.py
 """
 import shutil
@@ -16,25 +16,25 @@ from pathlib import Path
 
 from ultralytics import YOLO
 
-# Fix 1: resolve the repo root from this file's location (this file lives in train/)
+# Find the project folder from this script's location.
 REPO_ROOT = Path(__file__).resolve().parent.parent
-# Keep dataset and output paths independent of the shell's current directory.
+# Build paths from the project folder so the launch directory doesn't matter.
 DATA = str(REPO_ROOT / "data" / "office_items_dataset")
 LABELS_FILE = REPO_ROOT / "train" / "class_names.txt"
 
-# Fix 2: always write runs next to the detector runs, wherever the script is launched from
+# Keep classifier runs under train/runs, beside the detector runs.
 PROJECT = str(REPO_ROOT / "train" / "runs" / "classify")
 FINAL_DIR = REPO_ROOT / "train" / "final_model"
 
 
 def val_accuracy(results):
     """Top-1 validation accuracy from a finished training run."""
-    # Ultralytics versions may expose accuracy under either metric key.
+    # Check both keys in case Ultralytics reports the score under a different name.
     metrics = results.results_dict
     return metrics.get("metrics/accuracy_top1", metrics.get("fitness", 0.0))
 
 
-# Stage 1: feature extraction. Pretrained backbone frozen, only the new head trains.
+# Stage 1: keep most pretrained layers fixed and train the classifier head.
 model_stage1 = YOLO("yolov8n-cls.pt")
 results_stage1 = model_stage1.train(
     data=DATA,
@@ -51,7 +51,7 @@ results_stage1 = model_stage1.train(
     exist_ok=True,
 )
 
-# Stage 2: fine-tune everything, starting from stage 1's best weights.
+# Stage 2: continue from stage 1 and fine-tune all the layers.
 best_weights_stage1 = Path(results_stage1.save_dir) / "weights" / "best.pt"
 model_stage2 = YOLO(str(best_weights_stage1))
 results_stage2 = model_stage2.train(  # Fix 3: keep the result so the stages can be compared
@@ -68,7 +68,7 @@ results_stage2 = model_stage2.train(  # Fix 3: keep the result so the stages can
     exist_ok=True,
 )
 
-# Stage 3: baseline trained from scratch, for the pretrained-vs-scratch comparison.
+# Stage 3: train the same classifier from scratch for comparison.
 scratch = YOLO("yolov8n-cls.yaml")
 scratch.train(
     data=DATA,
@@ -84,8 +84,7 @@ scratch.train(
     exist_ok=True,
 )
 
-# Fix 3: choose the better transfer stage on validation accuracy and save it.
-# Compare only transfer stages here; the scratch run remains a separate baseline.
+# Pick the better transfer stage using validation accuracy.
 acc1 = val_accuracy(results_stage1)
 acc2 = val_accuracy(results_stage2)
 chosen = results_stage2 if acc2 >= acc1 else results_stage1
@@ -94,7 +93,7 @@ shutil.copy(Path(chosen.save_dir) / "weights" / "best.pt", FINAL_DIR / "classifi
 dataset_classes = sorted(
     path.name for path in (Path(DATA) / "train").iterdir() if path.is_dir()
 )
-# Ensure the saved checkpoint and generated class-name file use the dataset's folder order.
+# Check that the checkpoint's class order matches the training folders.
 classifier = YOLO(str(FINAL_DIR / "classifier_best.pt"))
 class_names = [classifier.names[index] for index in range(len(classifier.names))]
 if class_names != dataset_classes:

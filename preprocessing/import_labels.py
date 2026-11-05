@@ -1,18 +1,13 @@
-"""Import YOLO labels exported from makesense.ai into preprocessing/detect_dataset.
+"""Import YOLO labels from makesense.ai into preprocessing/detect_dataset.
 
-Two cases are handled automatically, by matching each exported file name to an image:
+The script matches each exported label filename to an image. If that image is
+already in detect_dataset, its label is replaced. If it was skipped during
+autolabeling, the image and new label are added to the matching split.
 
-1. The image is already in detect_dataset (you loaded detect_dataset/images/<split>/ to fix
-   auto-added boxes): the corrected label replaces the old one.
-2. The image only exists in data/office_items_dataset/<split>/<class>/ (you drew a box for an
-   image that autolabel skipped): the image is copied into detect_dataset with the same
-   naming as autolabel.py (<class_id>_<class>_<name>.<ext>) and its label is written.
+Labels are checked for valid YOLO coordinates and the right class before
+they're imported. Try --dry-run first to see which files would be changed.
 
-Safety checks: every line must be "<class_id> <cx> <cy> <w> <h>" with values in [0, 1], and
-the class in the label must match the image's class folder (or file-name prefix). Files that
-fail a check are reported and skipped. Use --dry-run first to see what would happen.
-
-Place in preprocessing/ and run from the repo root:
+Run from the repository root:
     .venv/bin/python preprocessing/import_labels.py path/to/export_folder_or_zip --dry-run
     .venv/bin/python preprocessing/import_labels.py path/to/export_folder_or_zip
 """
@@ -32,7 +27,7 @@ IGNORED_NAMES = {"labels", "classes", "class_names"}
 
 def parse_label(text: str, n_classes: int):
     """Return a list of (class_id, line) or None if any line is invalid."""
-    # Validate the entire file before importing any of its rows.
+    # Reject the file if any non-empty label line is invalid.
     boxes = []
     for line in text.splitlines():
         if not line.strip():
@@ -63,7 +58,7 @@ def main():
         raise SystemExit(f"Not found: {export}")
     tmp = None
     if export.suffix.lower() == ".zip":
-        # Extract archives into a temporary directory that is cleaned up after processing.
+        # Unpack ZIP exports temporarily; remove the extracted files at the end.
         tmp = tempfile.TemporaryDirectory()
         with zipfile.ZipFile(export) as archive:
             archive.extractall(tmp.name)
@@ -71,7 +66,7 @@ def main():
 
     classes = sorted(p.name for p in (
         SOURCE / "train").iterdir() if p.is_dir())
-    # Use the same alphabetical class ordering as the autolabel generation script.
+    # Use the same alphabetical class order as autolabel.py.
     class_ids = {name: index for index, name in enumerate(classes)}
 
     source_index = {}  # stem -> list of (split, class_name, image_path)
@@ -95,7 +90,7 @@ def main():
 
     done_existing = done_new = 0
     problems = []
-    # Build indexes once so exported label files can be matched without repeated full scans.
+    # Index image paths once so each label file is quick to match.
     for label_file in sorted(export.rglob("*.txt")):
         stem = label_file.stem
         if stem.lower() in IGNORED_NAMES:
@@ -112,13 +107,13 @@ def main():
             continue
 
         if stem in existing_index:
-            # Existing detector images are corrected in place under their current split.
+            # This image is already in the detector dataset; replace its label.
             split, image = existing_index[stem]
             prefix = stem.split("_", 1)[0]
             expected = int(prefix) if prefix.isdigit() else None
             out_stem, copy_from = stem, None
         elif stem in source_index:
-            # New manual labels are accepted only when the image name maps to one source folder.
+            # Only import new labels when the image name points to one source image.
             matches = source_index[stem]
             if len(matches) > 1:
                 problems.append(
@@ -132,7 +127,7 @@ def main():
             problems.append(f"{label_file.name}: no matching image found")
             continue
 
-        # Do not let a valid-looking annotation silently assign a different image class.
+        # Make sure the annotation class agrees with the image's folder/class ID.
         if expected is not None and not any(class_id == expected for class_id, _ in boxes):
             problems.append(
                 f"{label_file.name}: class in label does not match the image's class ({classes[expected]}), skipped"
@@ -140,7 +135,7 @@ def main():
             continue
 
         if not args.dry_run:
-            # Dry runs execute all matching and validation but skip every filesystem write.
+            # In dry-run mode, check everything but don't write files.
             (OUTPUT / "labels" / split).mkdir(parents=True, exist_ok=True)
             if copy_from is not None:
                 (OUTPUT / "images" / split).mkdir(parents=True, exist_ok=True)
