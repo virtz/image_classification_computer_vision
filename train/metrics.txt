@@ -4,7 +4,7 @@ Macro-F1: 0.844
                precision    recall  f1-score   support
 
 extension_box       1.00      1.00      1.00        15
-  flash_drive       1.00      1.00      1.00        14
+  flash_drive       1.00      1.00      1.00        15
           mug       1.00      0.93      0.97        15
      notebook       0.94      1.00      0.97        15
           pen       0.88      1.00      0.94        15
@@ -13,6 +13,6 @@ extension_box       1.00      1.00      1.00        15
  water_bottle       1.00      0.67      0.80        15
          none       0.00      0.00      0.00         0
 
-     accuracy                           0.93       119
-    macro avg       0.87      0.83      0.84       119
- weighted avg       0.98      0.93      0.95       119
+     accuracy                           0.93       120
+    macro avg       0.87      0.83      0.84       120
+ weighted avg       0.98      0.93      0.95       120

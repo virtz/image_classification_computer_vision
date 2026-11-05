@@ -28,42 +28,67 @@ Our dataset includes 8 target classes covering everyday office gear:
   - train/: Houses our model training scripts (train_detector.py, train_classifier.py) and evaluation pipeline (evaluate.py).
   - ui/: Streamlit frontend (app.py) for running live model predictions.
 
-## 3. Test Set Breakdown & Class Percentages
-We evaluated our main pipeline on a held-out test split of 118 total item instances across all 8 classes.
+## 3. Dataset Splits & Test Set Distribution
+The current dataset contains 800 images across eight classes. The test set is
+held out from training and validation.
 
-### Test Dataset Distribution (118 Total Instances)
+| Split | Images |
+| :--- | ---: |
+| Train | 560 |
+| Validation | 120 |
+| Test | 120 |
 
-| Class Name | Instance Count | Class Share (%) | Precision | Recall | F1-Score |
-| :--- | :---: | :---: | :---: | :---: | :---: |
-| Extension Box | 15 | 12.71% | 1.00 | 1.00 | 1.00 |
-| Flash Drive | 14 | 11.86% | 0.88 | 1.00 | 0.93 |
-| Mug | 15 | 12.71% | 0.70 | 0.93 | 0.80 |
-| Notebook | 15 | 12.71% | 1.00 | 0.67 | 0.80 |
-| Pen | 15 | 12.71% | 1.00 | 0.47 | 0.64 |
-| Phone | 15 | 12.71% | 1.00 | 0.93 | 0.97 |
-| USB Cord | 15 | 12.71% | 1.00 | 0.53 | 0.70 |
-| Water Bottle | 14 | 11.86% | 0.73 | 0.79 | 0.76 |
-| Total / Overall | 118 | 100.00% | 0.81 (Macro Avg) | 0.70 (Macro Avg) | 0.73 (Macro Avg) |
+Each class has 70 training images, 15 validation images, and 15 test images.
+The balanced test split therefore contains 12.5% of its images from each class.
 
-Note: We calculated each percentage as (Class Instance Count / 118) * 100%. Our model achieved an overall test accuracy of 78.8% (0.788) and a Macro-F1 score of 0.732.
+| Class Name | Train | Validation | Test |
+| :--- | ---: | ---: | ---: |
+| Extension Box | 70 | 15 | 15 |
+| Flash Drive | 70 | 15 | 15 |
+| Mug | 70 | 15 | 15 |
+| Notebook | 70 | 15 | 15 |
+| Pen | 70 | 15 | 15 |
+| Phone | 70 | 15 | 15 |
+| USB Cord | 70 | 15 | 15 |
+| Water Bottle | 70 | 15 | 15 |
+| **Total** | **560** | **120** | **120** |
 
 ## 4. How We Evaluated the Model
-Following our script in train/evaluate.py, we tested predictions directly against the test set folder layout (TEST = data/office_items_dataset/test):
+The classifier evaluation uses the class-folder labels in
+`data/office_items_dataset/test`. The detector evaluation script
+(`train/evaluate.py`) also summarizes the highest-confidence detection per
+image (or `none` when no box is detected). This image-level summary is not a
+bounding-box localization metric.
 
 1. Prediction Selection: We set a confidence threshold of CONF = 0.25. The bounding box with the highest confidence score was picked as the final class guess for each test image.
 2. Missing Detections: If the model didn't pick up any box above 0.25 confidence, we flagged the image as "none".
-3. Exported Files: Running evaluation automatically outputs our metrics (train/metrics.txt), misclassified image list (train/misclassified.txt), and plot (train/confusion_matrix.png).
+3. Exported Files: The detector image-level evaluation writes
+   `train/metrics.txt`, `train/misclassified.txt`, and
+   `train/confusion_matrix.png`. The classifier evaluation writes its own
+   metrics and confusion matrices under `train/`.
 
 ## 5. Model Benchmarks
-Here is how our fine-tuned transfer model compared against training from scratch:
+Both classifier and detector results below use the current 120-image test
+split. The classifier results are:
 
-- Fine-Tuned Model (Stage 2 Transfer Learning):
-  - Test mAP50: 0.903
-  - Test mAP50-95: 0.783
-  - Overall Test Accuracy: 78.8% (93 correctly predicted images out of 118, 25 errors).
-- Scratch Baseline Model:
-  - Test mAP50: 0.521
-  - Test mAP50-95: 0.334
+| Classifier | Accuracy | Macro-F1 | Incorrect predictions |
+| :--- | ---: | ---: | ---: |
+| Pretrained and fine-tuned YOLOv8n-cls | 0.983 | 0.983 | 2 |
+| YOLOv8n-cls trained from scratch | 0.642 | 0.637 | 43 |
+
+The detector's bounding-box evaluation covered 120 test images and 129
+annotated boxes:
+
+| Precision | Recall | mAP50 | mAP50-95 |
+| ---: | ---: | ---: | ---: |
+| 0.927 | 0.873 | 0.916 | 0.697 |
+
+As a separate image-level summary, using the highest-confidence detection per
+image (or `none` when no box is detected), the detector achieved 0.933
+accuracy and 0.844 macro-F1, with 8 incorrect predictions. These detector
+metrics measure agreement with the available labels, which began as
+YOLO-World pseudo-labels and were manually corrected; they are not an
+independent ground-truth assessment.
 
 ## 6. Challenges & Ideas for Improvement
 1. Small & Thin Items: Thin objects like pens and usb_cords scored lower on recall (0.47 and 0.53) because they easily blend into messy desk backgrounds or get partially covered.
